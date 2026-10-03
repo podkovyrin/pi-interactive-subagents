@@ -23,7 +23,7 @@ import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import {
-  isMuxAvailable,
+  isTmuxAvailable,
   createSurface,
   createSurfaceSplit,
   sendCommand,
@@ -32,7 +32,7 @@ import {
   readScreenAsync,
   closeSurface,
   shellEscape,
-} from "../../pi-extension/subagents/tmux.ts";
+} from "../../pi-extension/subagents/mux.ts";
 
 // Re-export tmux primitives for tests
 export {
@@ -80,7 +80,7 @@ export const PI_TIMEOUT = Number(process.env.PI_TEST_TIMEOUT ?? "120000");
  * Returns ["tmux"] or [].
  */
 export function getAvailableBackends(): string[] {
-  return isMuxAvailable() ? ["tmux"] : [];
+  return isTmuxAvailable() ? ["tmux"] : [];
 }
 
 export function focusSurface(surface: string): void {
