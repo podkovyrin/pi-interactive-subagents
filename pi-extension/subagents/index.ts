@@ -1159,22 +1159,29 @@ function startWidgetRefresh() {
   (globalThis as any)[WIDGET_INTERVAL_KEY] = widgetInterval;
 }
 
+/** Resolve the model from explicit overrides or the parent's current selection. */
+export function resolveSubagentModel(
+  override: string | undefined,
+  agentModel: string | undefined,
+  parentModel: { provider: string; id: string } | undefined,
+): string | undefined {
+  return override ?? agentModel ?? (parentModel ? `${parentModel.provider}/${parentModel.id}` : undefined);
+}
+
 /**
- * Launch a subagent: creates the multiplexer pane, builds the command, and
- * sends it. Returns a RunningSubagent — does NOT poll.
- *
+ * Launch a subagent in a multiplexer pane and return without polling.
  * Call watchSubagent() on the returned object to observe completion.
  */
 async function launchSubagent(
   params: typeof SubagentParams.static,
-  ctx: { sessionManager: { getSessionFile(): string | null; getSessionId(): string; getSessionDir(): string }; cwd: string },
+  ctx: Pick<ExtensionContext, "sessionManager" | "cwd" | "model">,
   options?: { surface?: string },
 ): Promise<RunningSubagent> {
   const startTime = Date.now();
   const id = Math.random().toString(16).slice(2, 10);
 
   const agentDefs = params.agent ? loadAgentDefaults(params.agent) : null;
-  const effectiveModel = params.model ?? agentDefs?.model;
+  const effectiveModel = resolveSubagentModel(params.model, agentDefs?.model, ctx.model);
   const effectiveTools = agentDefs?.tools;
   const effectiveSkills = agentDefs?.skills;
   const effectiveThinking = agentDefs?.thinking;

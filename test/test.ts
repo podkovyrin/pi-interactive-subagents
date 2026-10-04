@@ -58,6 +58,42 @@ import {
 import subagentDoneExtension from "../pi-extension/subagents/subagent-done.ts";
 import { __pollForExitTest__ } from "../pi-extension/subagents/mux.ts";
 
+describe("subagent model inheritance", () => {
+  it("inherits the current provider and model, including IDs with slashes", () => {
+    assert.equal(
+      subagentsModule.resolveSubagentModel(undefined, undefined, { provider: "openrouter", id: "vendor/model" }),
+      "openrouter/vendor/model",
+    );
+  });
+
+  it("reads the parent's model again after a model change", () => {
+    const parent = { provider: "provider-a", id: "model-a" };
+    assert.equal(subagentsModule.resolveSubagentModel(undefined, undefined, parent), "provider-a/model-a");
+    parent.provider = "provider-b";
+    parent.id = "model-b";
+    assert.equal(subagentsModule.resolveSubagentModel(undefined, undefined, parent), "provider-b/model-b");
+  });
+
+  it("preserves explicit agent and spawn overrides", () => {
+    const parent = { provider: "provider", id: "parent" };
+    assert.equal(subagentsModule.resolveSubagentModel(undefined, "fixed", parent), "fixed");
+    assert.equal(subagentsModule.resolveSubagentModel("override", "fixed", parent), "override");
+  });
+
+  it("uses the child default when no parent model is available", () => {
+    assert.equal(subagentsModule.resolveSubagentModel(undefined, undefined, undefined), undefined);
+  });
+
+  it("keeps role-specific thinking without fixed bundled models", () => {
+    for (const [name, level] of [["scout", "low"], ["researcher", "medium"], ["worker", "high"]]) {
+      const text = readFileSync(new URL(`../agents/${name}.md`, import.meta.url), "utf8");
+      const frontmatter = text.split("---", 3)[1];
+      assert.doesNotMatch(frontmatter, /^model:/m);
+      assert.match(frontmatter, new RegExp(`^thinking: ${level}$`, "m"));
+    }
+  });
+});
+
 // --- Helpers ---
 
 function createTestDir(): string {
