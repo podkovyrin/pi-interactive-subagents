@@ -82,8 +82,8 @@ If the reply arrives while the sub-agent is still mid-turn, it is absorbed into 
 | Agent | Model | Tools | Role |
 | ----- | ----- | ----- | ---- |
 | **scout** | Current Pi model, low thinking | `read`, `grep`, `find`, `ls` | Fast read-only codebase recon |
-| **researcher** | Current Pi model, medium thinking | `web_search`, `web_fetch`, `safe_bash` | Web research, synthesized into a sourced brief |
-| **worker** | Current Pi model, high thinking | `read`, `write`, `edit`, `bash`, `web_search`, `web_fetch` + spawning | General implementer; may spawn `scout` and `researcher` |
+| **researcher** | Current Pi model, medium thinking | `web_search`, `fetch_content`, `get_search_content`, `safe_bash` | Web research, synthesized into a sourced brief |
+| **worker** | Current Pi model, high thinking | `read`, `write`, `edit`, `bash`, `web_search`, `fetch_content`, `get_search_content` + spawning | General implementer; may spawn `scout` and `researcher` |
 
 All three are autonomous (`auto-exit: true`) and carry their identity in the system prompt (`system-prompt: append`).
 
@@ -114,7 +114,7 @@ You are a specialized agent that does X...
 | `description` | string | Shown in `subagents_list` |
 | `model` | string | Optional fixed model. Omit to inherit the parent's current Pi model |
 | `thinking` | string | `minimal`, `low`, `medium`, or `high` |
-| `tools` | string | Strict tool allowlist. Built-ins: `read`, `write`, `edit`, `bash`, `grep`, `find`, `ls`. Extension-backed: `web_search`, `web_fetch`, `safe_bash`, `video_extract`, `youtube_search`, `google_image_search`. Only the extensions backing the listed tools are loaded into the child |
+| `tools` | string | Strict tool allowlist. Built-ins: `read`, `write`, `edit`, `bash`, `grep`, `find`, `ls`. Extension-backed: `safe_bash` (bundled); `web_search`, `fetch_content`, `get_search_content`, `source_check` (from the [pi-web-access](https://github.com/nicobailon/pi-web-access) package, installed with `pi install npm:pi-web-access`); `web_fetch`, `video_extract`, `youtube_search`, `google_image_search` (legacy extensions in `~/.pi/agent/extensions/`). Only the extensions backing the listed tools are loaded into the child |
 | `subagent_agents` | string | Comma-separated agent names this agent may spawn. **Presence of this field grants the spawning toolset** (`subagent`, `subagent_message`, `subagents_list`) and restricts spawn targets to the list. Omit it and the agent cannot spawn at all |
 | `skills` | string | Comma-separated skill names to auto-load |
 | `session-mode` | string | `standalone` (default), `lineage-only`, or `fork` — see below |

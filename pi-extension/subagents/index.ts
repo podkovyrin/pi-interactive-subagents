@@ -203,6 +203,57 @@ export function registerToolExtension(name: string, extensionPath: string): void
   registerToolExtension,
 };
 
+/** Tools registered by the pi-web-access package. */
+const PI_WEB_ACCESS_TOOLS = new Set([
+  "web_search",
+  "fetch_content",
+  "get_search_content",
+  "source_check",
+]);
+
+/** Resolve a package's `pi.extensions` entry (file or directory) to a file. */
+function resolvePackageExtensionEntry(pkgDir: string): string | undefined {
+  let entries: unknown;
+  try {
+    entries = JSON.parse(readFileSync(join(pkgDir, "package.json"), "utf8"))?.pi?.extensions;
+  } catch {
+    return undefined;
+  }
+  if (!Array.isArray(entries)) return undefined;
+  for (const entry of entries) {
+    if (typeof entry !== "string") continue;
+    const target = resolve(pkgDir, entry);
+    for (const candidate of [target, join(target, "index.ts"), join(target, "index.js")]) {
+      if (/\.[cm]?[jt]s$/.test(candidate) && existsSync(candidate)) return candidate;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Find the pi-web-access extension entry in the global pi package installs
+ * (`npm:pi-web-access` or a `git:` checkout named pi-web-access).
+ */
+function findPiWebAccessExtension(): string | undefined {
+  const agentDir = getAgentConfigDir();
+  const candidates = [join(agentDir, "npm", "node_modules", "pi-web-access")];
+  const gitDir = join(agentDir, "git");
+  try {
+    for (const host of readdirSync(gitDir)) {
+      for (const owner of readdirSync(join(gitDir, host))) {
+        candidates.push(join(gitDir, host, owner, "pi-web-access"));
+      }
+    }
+  } catch {
+    // No git packages installed.
+  }
+  for (const pkgDir of candidates) {
+    const entry = resolvePackageExtensionEntry(pkgDir);
+    if (entry) return entry;
+  }
+  return undefined;
+}
+
 /**
  * Map a custom (non-built-in) tool name to the pi-extension file that
  * registers it. Used to build the child's `--extension` whitelist after
@@ -229,6 +280,10 @@ function getToolExtensionPath(tool: string): string | undefined {
   // was disabled/removed but a project-local extension re-registered it).
   const builtin = map[tool];
   if (builtin && existsSync(builtin)) return builtin;
+  if (PI_WEB_ACCESS_TOOLS.has(tool)) {
+    const webAccess = findPiWebAccessExtension();
+    if (webAccess) return webAccess;
+  }
   return EXTRA_TOOL_EXTENSIONS.get(tool);
 }
 
