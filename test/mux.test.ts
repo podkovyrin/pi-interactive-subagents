@@ -403,7 +403,8 @@ describe("subagent lifecycle over Herdr", () => {
       assert.equal(calls().filter((call) => call.args[1] === "close").length, 2);
       const resumeScript = readFileSync(resume.details.launchScriptFile, "utf8");
       assert.ok(resumeScript.includes("PI_SUBAGENT_AUTO_EXIT=1"));
-      assert.ok(resumeScript.includes("--no-extensions"));
+      assert.ok(!resumeScript.includes("--no-extensions"));
+      assert.ok(resumeScript.includes("PI_SUBAGENT_SPAWNING=0"));
       assert.ok(resumeScript.includes("--tools"));
     } finally {
       events.get("session_shutdown")!({}, ctx);

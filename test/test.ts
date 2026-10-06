@@ -1368,8 +1368,8 @@ describe("subagent discovery", () => {
       assert.ok(joined.includes("openrouter/z-ai/glm-5.2:medium"), "expected model:thinking");
       // Identity written to a file and appended.
       assert.ok(joined.includes("--append-system-prompt"), "expected --append-system-prompt");
-      // Default-deny restriction.
-      assert.ok(parts.includes("--no-extensions"), "expected --no-extensions");
+      // Extensions stay discoverable; only the tool allowlist restricts.
+      assert.ok(!parts.includes("--no-extensions"), "expected no --no-extensions");
       const toolsIdx = parts.indexOf("--tools");
       assert.ok(toolsIdx >= 0, "expected --tools");
       // The value is shell-escaped (single-quoted) before joining.

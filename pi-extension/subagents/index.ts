@@ -173,8 +173,8 @@ function getAgentConfigDir(): string {
 // `getToolExtensionPath` otherwise only knows a closed set of tool names. Other
 // pi extensions that bundle a tool for subagents (e.g. a project-local
 // extension exposing a bespoke tool) register its name → extension-file path
-// here at load/session_start time so a child process can be launched with
-// `--no-extensions` + an explicit `-e <path>` for it. Mirrors the legacy
+// here at load/session_start time so a child process can be launched with an
+// explicit `-e <path>` for it (discovery may not find it from the child's cwd). Mirrors the legacy
 // `subagents` extension's `registerToolExtension` hook.
 const EXTRA_TOOL_EXTENSIONS = new Map<string, string>();
 
@@ -256,8 +256,8 @@ function findPiWebAccessExtension(): string | undefined {
 
 /**
  * Map a custom (non-built-in) tool name to the pi-extension file that
- * registers it. Used to build the child's `--extension` whitelist after
- * `--no-extensions` disables global discovery. Returns undefined for built-in
+ * registers it. Used to add `--extension` paths for tools that discovery
+ * might not find in the child. Returns undefined for built-in
  * tools and for unknown names (which simply won't be granted).
  */
 function getToolExtensionPath(tool: string): string | undefined {
@@ -878,8 +878,8 @@ function buildSubagentToolAllowlist(
 
 /**
  * Apply a loadout snapshot's sandbox to a pi command's `parts` array: model,
- * identity (system prompt), and the default-deny tool/extension restriction
- * (`--no-extensions` + `--tools` + one `-e` per tool-backing extension).
+ * identity (system prompt), and the tool restriction (`--tools` + one `-e` per
+ * tool-backing extension).
  *
  * This is the single source of truth for reconstructing a subagent's sandbox,
  * used both by the initial `launchSubagent` and by the `subagent_message`
@@ -912,11 +912,14 @@ function applySandboxToParts(
     parts.push(flag, shellEscape(spPath));
   }
 
-  // Default-deny: disable global extension discovery and re-enable only the
-  // extensions backing the whitelisted tools. A null allowlist means the spawn
-  // was intentionally unrestricted (e.g. a fork clone) and is replayed as-is.
+  // The child keeps normal extension discovery, so all global/project/package
+  // extensions load (this extension disables itself in children that may not
+  // spawn, via PI_SUBAGENT_SPAWNING=0). `--tools` still limits the tools the
+  // model can see. Extensions that back whitelisted tools are also passed with
+  // `-e`, so tools that discovery cannot find (bundled safe_bash, tools
+  // registered at runtime) still load. Pi drops duplicate paths. A null
+  // allowlist means the spawn has no tool restriction (e.g. a fork clone).
   if (loadout.toolAllowlist) {
-    parts.push("--no-extensions");
     parts.push("--tools", shellEscape(loadout.toolAllowlist));
 
     const extPaths = new Set<string>();
@@ -1394,10 +1397,10 @@ async function launchSubagent(
         ? localAgentDir
         : (process.env.PI_CODING_AGENT_DIR ?? null);
 
-    // Default-deny model: when an agent restricts its tools (or is granted the
-    // spawning toolset), we disable global extension discovery and re-enable only
-    // the extensions backing the whitelisted tools. Bare/fork spawns with no tool
-    // restriction keep their full default toolset and all global extensions.
+    // When an agent restricts its tools (or gets the spawning toolset), `--tools`
+    // limits what the model can see. All extensions still load, except this one
+    // (unless spawning is granted). Spawns with no tool restriction keep the
+    // full default toolset.
     const toolAllowlist = buildSubagentToolAllowlist(effectiveTools, { grantSpawning });
 
     // Snapshot the fully-resolved sandbox beside the session file so a later
@@ -1417,7 +1420,7 @@ async function launchSubagent(
     };
     writeSubagentLoadout(subagentSessionFile, loadout);
 
-    // Apply model, identity, and the default-deny tool/extension restriction via
+    // Apply model, identity, and the tool restriction via
     // the shared helper (same code path resume uses — they can't drift).
     applySandboxToParts(parts, loadout, { artifactDir, name: params.name });
 
@@ -1431,6 +1434,8 @@ async function launchSubagent(
     if (grantSpawning && agentDefs?.subagentAgents) {
       envParts.push(`PI_SUBAGENT_ALLOWED=${shellEscape(agentDefs.subagentAgents.join(","))}`);
     }
+    // Set it every time: the pane shell can inherit env from the mux server.
+    envParts.push(`PI_SUBAGENT_SPAWNING=${grantSpawning ? "1" : "0"}`);
     envParts.push(`PI_SUBAGENT_NAME=${shellEscape(params.name)}`);
     if (params.agent) {
       envParts.push(`PI_SUBAGENT_AGENT=${shellEscape(params.agent)}`);
@@ -1719,6 +1724,16 @@ async function watchSubagent(
 }
 
 export default function subagentsExtension(pi: ExtensionAPI) {
+  // Subagents load all extensions except this one, so they cannot spawn more
+  // subagents. Only agents with `subagent_agents` get PI_SUBAGENT_SPAWNING=1.
+  if (process.env.PI_SUBAGENT_SPAWNING === "0") return;
+  // If two copies of this extension load (e.g. an installed package plus a
+  // dev `-e` path), only the first one registers, so the tools do not conflict.
+  const ownerKey = "__pi_interactive_subagents_owner";
+  const owner = (globalThis as any)[ownerKey] as string | undefined;
+  if (owner && owner !== import.meta.url) return;
+  (globalThis as any)[ownerKey] = import.meta.url;
+
   latestPi = pi;
   // Capture the UI context for widget updates
   pi.on("session_start", (_event, ctx) => {
@@ -1755,8 +1770,8 @@ export default function subagentsExtension(pi: ExtensionAPI) {
 
   // The spawning tools are always registered here. Whether a child process can
   // actually see/use them is governed by the parent's `--tools` allowlist and
-  // by which extensions are loaded into the child (default-deny --no-extensions
-  // + explicit -e). See launchSubagent().
+  // and by PI_SUBAGENT_SPAWNING, which stops this extension from loading in
+  // children that may not spawn. See launchSubagent().
 
   // ── subagent tool ──
   pi.registerTool({
@@ -2243,7 +2258,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
           const activityFile = getSubagentActivityFile(artifactDir, id);
           mkdirSync(dirname(activityFile), { recursive: true });
 
-          // Replay the model, identity, and default-deny tool/extension sandbox.
+          // Replay the model, identity, and tool restriction.
           applySandboxToParts(parts, loadout, { artifactDir, name });
 
           let resumeMsgFile: string | undefined;
@@ -2277,6 +2292,8 @@ export default function subagentsExtension(pi: ExtensionAPI) {
           if (loadout.spawnable && loadout.spawnable.length > 0) {
             resumeEnvParts.push(`PI_SUBAGENT_ALLOWED=${shellEscape(loadout.spawnable.join(","))}`);
           }
+          const resumeSpawning = !!(loadout.spawnable && loadout.spawnable.length > 0);
+          resumeEnvParts.push(`PI_SUBAGENT_SPAWNING=${resumeSpawning ? "1" : "0"}`);
           if (loadout.agent) {
             resumeEnvParts.push(`PI_SUBAGENT_AGENT=${shellEscape(loadout.agent)}`);
           }
