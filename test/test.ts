@@ -362,7 +362,7 @@ describe("session.ts", () => {
   describe("subagent loadout snapshot", () => {
     const sample: SubagentLoadout = {
       agent: "worker",
-      toolAllowlist: "read,write,edit,safe_bash,web_search,subagent,ask_question",
+      toolAllowlist: "read,write,edit,bash,web_search,subagent,ask_question",
       model: "openrouter/z-ai/glm-5.2",
       thinking: "medium",
       systemPromptMode: "append",
@@ -1250,7 +1250,6 @@ describe("subagent discovery", () => {
       assert.equal(testApi.getToolExtensionPath("read"), undefined);
       assert.equal(testApi.getToolExtensionPath("bash"), undefined);
       assert.ok(testApi.getToolExtensionPath("web_search")?.endsWith("web-search/index.ts"));
-      assert.ok(testApi.getToolExtensionPath("safe_bash")?.endsWith("tools/safe-bash.ts"));
       // Spawning tools are registered by this extension itself.
       assert.ok(testApi.getToolExtensionPath("subagent")?.endsWith("index.ts"));
     });
@@ -1350,7 +1349,7 @@ describe("subagent discovery", () => {
         parts,
         {
           agent: "worker",
-          toolAllowlist: "read,write,safe_bash",
+          toolAllowlist: "read,write,bash",
           model: "openrouter/z-ai/glm-5.2",
           thinking: "medium",
           systemPromptMode: "append",
@@ -1368,13 +1367,15 @@ describe("subagent discovery", () => {
       assert.ok(joined.includes("openrouter/z-ai/glm-5.2:medium"), "expected model:thinking");
       // Identity written to a file and appended.
       assert.ok(joined.includes("--append-system-prompt"), "expected --append-system-prompt");
+      // Built-in tools need no explicit extension paths.
+      assert.ok(!parts.includes("-e"), "expected no extension paths for built-in tools");
       // Extensions stay discoverable; only the tool allowlist restricts.
       assert.ok(!parts.includes("--no-extensions"), "expected no --no-extensions");
       const toolsIdx = parts.indexOf("--tools");
       assert.ok(toolsIdx >= 0, "expected --tools");
       // The value is shell-escaped (single-quoted) before joining.
       assert.ok(
-        parts[toolsIdx + 1].includes("read,write,safe_bash"),
+        parts[toolsIdx + 1].includes("read,write,bash"),
         "expected the tool allowlist as the --tools value",
       );
     });

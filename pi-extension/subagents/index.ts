@@ -273,7 +273,6 @@ function getToolExtensionPath(tool: string): string | undefined {
     video_extract: join(extBase, "video-extract", "index.ts"),
     youtube_search: join(extBase, "youtube-search", "index.ts"),
     google_image_search: join(extBase, "google-image-search", "index.ts"),
-    safe_bash: join(SUBAGENTS_DIR, "tools", "safe-bash.ts"),
   };
   // Prefer the built-in path, but fall back to a runtime-registered extension
   // when that path no longer exists on disk (e.g. a built-in tool extension
@@ -916,8 +915,8 @@ function applySandboxToParts(
   // extensions load (this extension disables itself in children that may not
   // spawn, via PI_SUBAGENT_SPAWNING=0). `--tools` still limits the tools the
   // model can see. Extensions that back whitelisted tools are also passed with
-  // `-e`, so tools that discovery cannot find (bundled safe_bash, tools
-  // registered at runtime) still load. Pi drops duplicate paths. A null
+  // `-e`, so tools registered at runtime still load when discovery cannot
+  // find them. Pi drops duplicate paths. A null
   // allowlist means the spawn has no tool restriction (e.g. a fork clone).
   if (loadout.toolAllowlist) {
     parts.push("--tools", shellEscape(loadout.toolAllowlist));
@@ -2306,7 +2305,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
           }
           const resumeEnvPrefix = resumeEnvParts.join(" ") + " ";
 
-          // Resume in the subagent's original cwd so its tools (safe_bash, edits)
+          // Resume in the subagent's original cwd so its tools (bash, edits)
           // operate where they did before.
           const resumeCdPrefix = loadout.cwd ? `cd ${shellEscape(loadout.cwd)} && ` : "";
 

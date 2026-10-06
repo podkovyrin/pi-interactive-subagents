@@ -82,7 +82,7 @@ If the reply arrives while the sub-agent is still mid-turn, it is absorbed into 
 | Agent | Model | Tools | Role |
 | ----- | ----- | ----- | ---- |
 | **scout** | Current Pi model, low thinking | `read`, `grep`, `find`, `ls` | Fast read-only codebase recon |
-| **researcher** | Current Pi model, medium thinking | `web_search`, `fetch_content`, `get_search_content`, `safe_bash` | Web research, synthesized into a sourced brief |
+| **researcher** | Current Pi model, medium thinking | `web_search`, `fetch_content`, `get_search_content`, `bash` | Web research, synthesized into a sourced brief |
 | **worker** | Current Pi model, high thinking | `read`, `write`, `edit`, `bash`, `web_search`, `fetch_content`, `get_search_content` + spawning | General implementer; may spawn `scout` and `researcher` |
 
 All three are autonomous (`auto-exit: true`) and carry their identity in the system prompt (`system-prompt: append`).
@@ -98,7 +98,7 @@ Place a `.md` file in `.pi/agents/` (project) or `~/.pi/agent/agents/` (global).
 name: my-agent
 description: Does something specific
 thinking: medium
-tools: read, edit, write, safe_bash, web_search
+tools: read, edit, write, bash, web_search
 session-mode: lineage-only
 auto-exit: true
 ---
@@ -114,7 +114,7 @@ You are a specialized agent that does X...
 | `description` | string | Shown in `subagents_list` |
 | `model` | string | Optional fixed model. Omit to inherit the parent's current Pi model |
 | `thinking` | string | `minimal`, `low`, `medium`, or `high` |
-| `tools` | string | Strict tool allowlist. Built-ins: `read`, `write`, `edit`, `bash`, `grep`, `find`, `ls`. Extension-backed: `safe_bash` (bundled); `web_search`, `fetch_content`, `get_search_content`, `source_check` (from the [pi-web-access](https://github.com/nicobailon/pi-web-access) package, installed with `pi install npm:pi-web-access`); `web_fetch`, `video_extract`, `youtube_search`, `google_image_search` (legacy extensions in `~/.pi/agent/extensions/`). All extensions load into the child, but only the listed tools are visible |
+| `tools` | string | Strict tool allowlist. Built-ins: `read`, `write`, `edit`, `bash`, `grep`, `find`, `ls`. Extension-backed: `web_search`, `fetch_content`, `get_search_content`, `source_check` (from the [pi-web-access](https://github.com/nicobailon/pi-web-access) package, installed with `pi install npm:pi-web-access`); `web_fetch`, `video_extract`, `youtube_search`, `google_image_search` (legacy extensions in `~/.pi/agent/extensions/`). All extensions load into the child, but only the listed tools are visible |
 | `subagent_agents` | string | Comma-separated agent names this agent may spawn. **Presence of this field grants the spawning toolset** (`subagent`, `subagent_message`, `subagents_list`) and restricts spawn targets to the list. Omit it and the agent cannot spawn at all |
 | `skills` | string | Comma-separated skill names to auto-load |
 | `session-mode` | string | `standalone` (default), `lineage-only`, or `fork` — see below |
@@ -146,7 +146,7 @@ Controls whether `stalled`/`recovered` status transitions send a steer message t
 
 ## Tool access control
 
-Tool access is **whitelist-only**. Every sub-agent process loads all your extensions (global, project, and packages) except pi-interactive-subagents itself, so a sub-agent cannot spawn more sub-agents. The exception is an agent with `subagent_agents`: it gets the spawning tools, limited to the listed agents. The process is launched with `--tools <allowlist>`, so extension hooks and commands run but the model sees only the listed tools. Extensions that back listed tools are also passed with `-e`, so bundled tools such as `safe_bash` load. There is no default toolset and no deny-list — an agent gets exactly what its frontmatter lists. The restriction survives resume via the loadout snapshot.
+Tool access is **whitelist-only**. Every sub-agent process loads all your extensions (global, project, and packages) except pi-interactive-subagents itself, so a sub-agent cannot spawn more sub-agents. The exception is an agent with `subagent_agents`: it gets the spawning tools, limited to the listed agents. The process is launched with `--tools <allowlist>`, so extension hooks and commands run but the model sees only the listed tools. Extensions that back listed tools are also passed with `-e`, so tools registered at runtime load even when discovery cannot find their extensions. There is no default toolset and no deny-list — an agent gets exactly what its frontmatter lists. The restriction survives resume via the loadout snapshot.
 
 Spawns must name a known agent at **every** depth. A top-level session may spawn anything discoverable; a sub-agent may only spawn the agents in its `subagent_agents` list (enforced via `PI_SUBAGENT_ALLOWED`). There is no agentless spawn route, so a child can never escalate to a full-toolset profile by omitting its agent.
 
